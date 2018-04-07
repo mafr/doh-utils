@@ -39,12 +39,15 @@ def query_get(host, port, path, record):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="DNS-over-HTTPS lookup utility")
-    parser.add_argument("hostname", metavar="hostname", help="the DNS name to look up")
+    parser.add_argument("hostname", metavar="hostname",
+            help="the DNS name to look up")
+    parser.add_argument("-t", "--type", default="ANY",
+            help="query type (default: %(default)s)")
     parser.add_argument("-v", "--verbose", action="store_true",
             help="enable verbose output")
     args = parser.parse_args()
 
-    query = DNSRecord.question(args.hostname, "ANY")
+    query = DNSRecord.question(args.hostname, args.type)
     if args.verbose:
         print(query, file=sys.stderr)
 
