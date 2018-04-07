@@ -1,8 +1,10 @@
 #! /usr/bin/env python3
+import argparse
+import sys
+from urllib.parse import urlencode
+from base64 import urlsafe_b64encode
 from hyper import HTTPConnection
 from dnslib import DNSRecord
-from base64 import urlsafe_b64encode
-from urllib.parse import urlencode
 
 
 DOH_HOST = "dns.google.com"
@@ -14,27 +16,42 @@ HEADERS = {
 }
 
 
-dns_query = DNSRecord.question("google.com", "ANY")
-enc_query = urlsafe_b64encode(dns_query.pack())
+def print_http_response(status, header, file):
+    print("Status:", status, file=sys.stderr)
+    print("Header:", file=file)
+    for field, value in header:
+        print("    {}: {}".format(
+                str(field, "ascii"), str(value, "ascii")), file=file)
 
-params = urlencode({
-    "ct": "",
-    "dns": enc_query
-})
+
+def query_get(host, port, path, record):
+    with HTTPConnection(host, port) as conn:
+        enc_query = urlsafe_b64encode(record.pack()) # TODO: strip padding
+        # Note: the "ct" parameter was removed in draft -05
+        params = urlencode({
+            "ct": "",
+            "dns": enc_query
+        })
+        conn.request("GET", path + params, headers=HEADERS)
+        r = conn.get_response()
+        return (r.status, r.headers, DNSRecord.parse(r.read()))
 
 
-with HTTPConnection(DOH_HOST, DOH_PORT) as conn:
-    s = conn.request("GET", DOH_PATH + params, headers=HEADERS)
-    resp = conn.get_response()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="DNS-over-HTTPS lookup utility")
+    parser.add_argument("hostname", metavar="hostname", help="the DNS name to look up")
+    parser.add_argument("-v", "--verbose", action="store_true",
+            help="enable verbose output")
+    args = parser.parse_args()
 
-    print("Status:", resp.status)
-    print("Header:")
-    for header, value in resp.headers:
-        print("    {}: {}".format(str(header, "ascii"), str(value, "ascii")))
+    query = DNSRecord.question(args.hostname, "ANY")
+    if args.verbose:
+        print(query, file=sys.stderr)
 
-    packet = resp.read()
-    rec = DNSRecord.parse(packet)
+    status, header, record = query_get(DOH_HOST, DOH_PORT, DOH_PATH, query)
+    
+    if args.verbose:
+        print_http_response(status, header, sys.stderr)
+    print(record)
 
-    print()
-    print(rec)
-
+# EOF
