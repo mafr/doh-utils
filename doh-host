@@ -9,10 +9,20 @@ from dnslib import DNSRecord
 
 DOH_HOST = "dns.google.com"
 DOH_PORT = 443
-DOH_PATH = "/experimental?"
+DOH_PATH = "/experimental"
 
-HEADERS = {
-    "accept": "application/dns-udpwirefomat"
+#DOH_HOST = "cloudflare-dns.com"
+#DOH_PORT = 443
+#DOH_PATH = "/dns-query?"
+
+CONTENT_TYPE = "application/dns-udpwirefomat" 
+GET_HEADERS = {
+    "accept": CONTENT_TYPE
+}
+
+POST_HEADERS = {
+    "accept": CONTENT_TYPE,
+    "content-type": CONTENT_TYPE
 }
 
 
@@ -23,16 +33,26 @@ def print_http_response(status, header, file):
         print("    {}: {}".format(
                 str(field, "ascii"), str(value, "ascii")), file=file)
 
+def encode(data):
+    # Google DNS doesn't like it when padding is removed, even though it's required
+    # by the spec ("Padding characters for base64url MUST NOT be included.")
+    #return str(urlsafe_b64encode(data), "ascii").replace("=", "")
+    return urlsafe_b64encode(data)
 
 def query_get(host, port, path, record):
     with HTTPConnection(host, port) as conn:
-        enc_query = urlsafe_b64encode(record.pack()) # TODO: strip padding
-        # Note: the "ct" parameter was removed in draft -05
         params = urlencode({
-            "ct": "",
-            "dns": enc_query
+            "ct": "",  # Note: the "ct" parameter was removed in draft -05
+            "dns": encode(record.pack())
         })
-        conn.request("GET", path + params, headers=HEADERS)
+        conn.request("GET", path + "?" + params, headers=GET_HEADERS)
+        r = conn.get_response()
+        return (r.status, r.headers, DNSRecord.parse(r.read()))
+
+
+def query_post(host, port, path, record):
+    with HTTPConnection(host, port) as conn:
+        conn.request("POST", path, headers=POST_HEADERS, body=record.pack())
         r = conn.get_response()
         return (r.status, r.headers, DNSRecord.parse(r.read()))
 
@@ -41,6 +61,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="DNS-over-HTTPS lookup utility")
     parser.add_argument("hostname", metavar="hostname",
             help="the DNS name to look up")
+    parser.add_argument("-p", "--post", action="store_true",
+            help="use HTTP POST instead of GET")
     parser.add_argument("-t", "--type", default="ANY",
             help="query type (default: %(default)s)")
     parser.add_argument("-v", "--verbose", action="store_true",
@@ -51,7 +73,10 @@ if __name__ == "__main__":
     if args.verbose:
         print(query, file=sys.stderr)
 
-    status, header, record = query_get(DOH_HOST, DOH_PORT, DOH_PATH, query)
+    if args.post:
+        status, header, record = query_post(DOH_HOST, DOH_PORT, DOH_PATH, query)
+    else:
+        status, header, record = query_get(DOH_HOST, DOH_PORT, DOH_PATH, query)
     
     if args.verbose:
         print_http_response(status, header, sys.stderr)
