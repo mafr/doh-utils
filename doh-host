@@ -7,13 +7,13 @@ from hyper import HTTPConnection
 from dnslib import DNSRecord
 
 
-DOH_HOST = "dns.google.com"
-DOH_PORT = 443
-DOH_PATH = "/experimental"
-
-#DOH_HOST = "cloudflare-dns.com"
+#DOH_HOST = "dns.google.com"
 #DOH_PORT = 443
-#DOH_PATH = "/dns-query"
+#DOH_PATH = "/experimental"
+
+DOH_HOST = "cloudflare-dns.com"
+DOH_PORT = 443
+DOH_PATH = "/dns-query"
 
 CONTENT_TYPE = "application/dns-udpwireformat"
 GET_HEADERS = {
@@ -32,6 +32,12 @@ def print_http_response(status, header, file):
     for field, value in header:
         print("    {}: {}".format(
                 str(field, "ascii"), str(value, "ascii")), file=file)
+
+def create_query(hostname, qtype):
+    record = DNSRecord.question(hostname, qtype)
+    # normalize request for caching purposes by setting ID to zero, as per spec
+    record.header.id = 0
+    return record
 
 def encode(data):
     # Google DNS doesn't like it when padding is removed, even though it's required
@@ -70,7 +76,7 @@ if __name__ == "__main__":
             help="enable verbose output")
     args = parser.parse_args()
 
-    query = DNSRecord.question(args.hostname, args.type)
+    query = create_query(args.hostname, args.type)
     if args.verbose:
         print(query, file=sys.stderr)
 
