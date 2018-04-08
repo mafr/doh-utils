@@ -39,6 +39,10 @@ def encode(data):
     #return str(urlsafe_b64encode(data), "ascii").replace("=", "")
     return urlsafe_b64encode(data)
 
+def extract_result(response):
+    record = DNSRecord.parse(response.read()) if response.status == 200 else None
+    return (response.status, response.headers, record)
+
 def query_get(host, port, path, record):
     with HTTPConnection(host, port) as conn:
         params = urlencode({
@@ -46,15 +50,12 @@ def query_get(host, port, path, record):
             "dns": encode(record.pack())
         })
         conn.request("GET", path + "?" + params, headers=GET_HEADERS)
-        r = conn.get_response()
-        return (r.status, r.headers, DNSRecord.parse(r.read()))
-
+        return extract_result(conn.get_response())
 
 def query_post(host, port, path, record):
     with HTTPConnection(host, port) as conn:
         conn.request("POST", path, headers=POST_HEADERS, body=record.pack())
-        r = conn.get_response()
-        return (r.status, r.headers, DNSRecord.parse(r.read()))
+        return extract_result(conn.get_response())
 
 
 if __name__ == "__main__":
