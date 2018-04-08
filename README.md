@@ -42,7 +42,7 @@ optional arguments:
 $
 ```
 
-Example:
+Examples:
 
 ```
 $ ./doh-host mafr.de
@@ -60,6 +60,13 @@ mafr.de.                21599   IN      SOA     ns-de.1and1-dns.de. hostmaster.k
 mafr.de.                3599    IN      MX      10 mx01.kundenserver.de.
 mafr.de.                3599    IN      MX      10 mx00.kundenserver.de.
 mafr.de.                3599    IN      AAAA    2604:a880:800:10::560:c001
+$ ./doh-host --post --server "https://cloudflare-dns.com/dns-query" --type AAAA mafr.de
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 0
+;; flags: qr rd ra; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 0
+;; QUESTION SECTION:
+;mafr.de.                       IN      AAAA
+;; ANSWER SECTION:
+mafr.de.                3600    IN      AAAA    2604:a880:800:10::560:c001
 $
 ```
 

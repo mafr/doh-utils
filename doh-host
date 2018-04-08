@@ -72,8 +72,10 @@ if __name__ == "__main__":
             help="the DNS name to look up")
     parser.add_argument("-p", "--post", action="store_true",
             help="use HTTP POST instead of GET")
+    parser.add_argument("-s", "--server", default=DOH_URI,
+            help="DNS-over-HTTP server to use (default: '%(default)s')")
     parser.add_argument("-t", "--type", default="ANY",
-            help="query type (default: %(default)s)")
+            help="query type (default: '%(default)s')")
     parser.add_argument("-v", "--verbose", action="store_true",
             help="enable verbose output")
     args = parser.parse_args()
@@ -84,10 +86,10 @@ if __name__ == "__main__":
         print(query, file=sys.stderr)
 
     if args.post:
-        host, port, target = expand_template(DOH_URI)
+        host, port, target = expand_template(args.server)
         status, header, record = query_post(host, port, target, query.pack())
     else:
-        host, port, target = expand_template(DOH_URI, encode(query.pack()))
+        host, port, target = expand_template(args.server, encode(query.pack()))
         status, header, record = query_get(host, port, target)
     
     if args.verbose:
