@@ -13,9 +13,9 @@ DOH_PATH = "/experimental"
 
 #DOH_HOST = "cloudflare-dns.com"
 #DOH_PORT = 443
-#DOH_PATH = "/dns-query?"
+#DOH_PATH = "/dns-query"
 
-CONTENT_TYPE = "application/dns-udpwirefomat" 
+CONTENT_TYPE = "application/dns-udpwireformat"
 GET_HEADERS = {
     "accept": CONTENT_TYPE
 }
