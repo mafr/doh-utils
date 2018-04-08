@@ -1,19 +1,18 @@
 #! /usr/bin/env python3
 import argparse
 import sys
-from urllib.parse import urlencode
+from urllib.parse import urlsplit, urlunsplit
+from uritemplate import URITemplate, expand
 from base64 import urlsafe_b64encode
 from hyper import HTTPConnection
 from dnslib import DNSRecord
 
 
-#DOH_HOST = "dns.google.com"
-#DOH_PORT = 443
-#DOH_PATH = "/experimental"
+# Note: Google's DoH server currently requires the "ct" param from draft -04.
+DOH_URI = "https://dns.google.com/experimental{?dns,ct}"
 
-DOH_HOST = "cloudflare-dns.com"
-DOH_PORT = 443
-DOH_PATH = "/dns-query"
+# Note: Cloudflare doesn't support GET yet.
+#DOH_URI = "https://cloudflare-dns.com/dns-query{?dns}"
 
 CONTENT_TYPE = "application/dns-udpwireformat"
 GET_HEADERS = {
@@ -45,22 +44,25 @@ def encode(data):
     #return str(urlsafe_b64encode(data), "ascii").replace("=", "")
     return urlsafe_b64encode(data)
 
+def expand_template(template, query=None):
+    ut = URITemplate(template)
+    uri = ut.expand(dns=query, ct="") # Note: "ct" has been removed in draft-05!
+    c = urlsplit(uri)
+    target = urlunsplit(("", "", c.path, c.query, ""))
+    return (c.hostname, c.port or 443, target)
+
 def extract_result(response):
     record = DNSRecord.parse(response.read()) if response.status == 200 else None
     return (response.status, response.headers, record)
 
-def query_get(host, port, path, record):
+def query_get(host, port, target):
     with HTTPConnection(host, port) as conn:
-        params = urlencode({
-            "ct": "",  # Note: the "ct" parameter was removed in draft -05
-            "dns": encode(record.pack())
-        })
-        conn.request("GET", path + "?" + params, headers=GET_HEADERS)
+        conn.request("GET", target, headers=GET_HEADERS)
         return extract_result(conn.get_response())
 
-def query_post(host, port, path, record):
+def query_post(host, port, target, data):
     with HTTPConnection(host, port) as conn:
-        conn.request("POST", path, headers=POST_HEADERS, body=record.pack())
+        conn.request("POST", target, headers=POST_HEADERS, body=data)
         return extract_result(conn.get_response())
 
 
@@ -76,14 +78,17 @@ if __name__ == "__main__":
             help="enable verbose output")
     args = parser.parse_args()
 
+
     query = create_query(args.hostname, args.type)
     if args.verbose:
         print(query, file=sys.stderr)
 
     if args.post:
-        status, header, record = query_post(DOH_HOST, DOH_PORT, DOH_PATH, query)
+        host, port, target = expand_template(DOH_URI)
+        status, header, record = query_post(host, port, target, query.pack())
     else:
-        status, header, record = query_get(DOH_HOST, DOH_PORT, DOH_PATH, query)
+        host, port, target = expand_template(DOH_URI, encode(query.pack()))
+        status, header, record = query_get(host, port, target)
     
     if args.verbose:
         print_http_response(status, header, sys.stderr)
